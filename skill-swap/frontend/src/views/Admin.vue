@@ -69,10 +69,10 @@
           <div class="exchange-footer">
             <span class="exchange-time">创建于 {{ formatTime(exchange.createdAt) }}</span>
             <div class="exchange-actions">
-              <el-button @click="showHandleDialog(exchange, 'reject')" type="primary">
+              <el-button @click="openHandleDialog(exchange, 'reject')" type="primary">
                 <el-icon><Close /></el-icon>驳回申诉
               </el-button>
-              <el-button @click="showHandleDialog(exchange, 'approve')" type="danger">
+              <el-button @click="openHandleDialog(exchange, 'approve')" type="danger">
                 <el-icon><Check /></el-icon>批准取消
               </el-button>
             </div>
@@ -146,10 +146,10 @@
               <span v-if="exchange.cancelledAt"> | 取消：{{ formatTime(exchange.cancelledAt) }}</span>
             </div>
             <div class="exchange-actions">
-              <el-button v-if="exchange.status === 'disputed'" @click="showHandleDialog(exchange, 'reject')" type="primary" size="small">
+              <el-button v-if="exchange.status === 'disputed'" @click="openHandleDialog(exchange, 'reject')" type="primary" size="small">
                 驳回申诉
               </el-button>
-              <el-button v-if="exchange.status === 'disputed'" @click="showHandleDialog(exchange, 'approve')" type="danger" size="small">
+              <el-button v-if="exchange.status === 'disputed'" @click="openHandleDialog(exchange, 'approve')" type="danger" size="small">
                 批准取消
               </el-button>
             </div>
@@ -159,7 +159,7 @@
       </div>
     </div>
 
-    <el-dialog v-model="showHandleDialog" :title="handleAction === 'approve' ? '批准取消' : '驳回申诉'" width="500px">
+    <el-dialog v-model="showHandleModal" :title="handleAction === 'approve' ? '批准取消' : '驳回申诉'" width="500px">
       <div v-if="currentExchange" class="handle-form">
         <div class="handle-info">
           <div class="info-row">
@@ -190,7 +190,7 @@
         </div>
       </div>
       <template #footer>
-        <el-button @click="showHandleDialog = false">取消</el-button>
+        <el-button @click="showHandleModal = false">取消</el-button>
         <el-button :type="handleAction === 'approve' ? 'danger' : 'primary'" @click="submitHandle" :loading="submitting">
           确认{{ handleAction === 'approve' ? '批准取消' : '驳回申诉' }}
         </el-button>
@@ -213,7 +213,7 @@ const exchanges = ref([])
 const users = ref({})
 const activeTab = ref('disputed')
 const statusFilter = ref('all')
-const showHandleDialog = ref(false)
+const showHandleModal = ref(false)
 const currentExchange = ref(null)
 const handleAction = ref('approve')
 const handleForm = ref({ remark: '' })
@@ -276,11 +276,11 @@ function formatTime(time) {
   return dayjs(time).format('YYYY-MM-DD HH:mm')
 }
 
-function showHandleDialog(exchange, action) {
+function openHandleDialog(exchange, action) {
   currentExchange.value = exchange
   handleAction.value = action
   handleForm.value = { remark: '' }
-  showHandleDialog.value = true
+  showHandleModal.value = true
 }
 
 async function submitHandle() {
@@ -292,7 +292,7 @@ async function submitHandle() {
     submitting.value = true
     await adminAPI.handleDispute(currentExchange.value.id, action, handleForm.value.remark)
     ElMessage.success('处理成功')
-    showHandleDialog.value = false
+    showHandleModal.value = false
     await loadExchanges()
   } catch (e) {
     ElMessage.error(e.message || '处理失败')

@@ -48,7 +48,7 @@
           <div class="exchange-footer">
             <span class="exchange-time">{{ formatTime(exchange.createdAt) }}</span>
             <div class="exchange-actions">
-              <el-button type="danger" text @click="showCancelDialog(exchange)">
+              <el-button type="danger" text @click="openCancelDialog(exchange)">
                 <el-icon><Close /></el-icon>申请取消
               </el-button>
               <el-button @click="goToChat(exchange)">
@@ -106,7 +106,7 @@
           <div class="exchange-footer">
             <span class="exchange-time">{{ formatTime(exchange.createdAt) }}</span>
             <div class="exchange-actions" v-if="exchange.cancelRequestedBy !== myId">
-              <el-button type="danger" @click="showDisputeDialog(exchange)">
+              <el-button type="danger" @click="openDisputeDialog(exchange)">
                 <el-icon><Warning /></el-icon>申诉
               </el-button>
               <el-button type="success" @click="approveCancel(exchange)" :loading="processingId === exchange.id">
@@ -199,7 +199,7 @@
           <div class="exchange-footer">
             <span class="exchange-time">完成于 {{ formatTime(exchange.completedAt) }}</span>
             <div class="exchange-actions">
-              <el-button type="success" @click="showReviewDialog(exchange)" :disabled="hasReviewed(exchange)">
+              <el-button type="success" @click="openReviewDialog(exchange)" :disabled="hasReviewed(exchange)">
                 <el-icon><Star /></el-icon>
                 {{ hasReviewed(exchange) ? '已评价' : '去评价' }}
               </el-button>
@@ -257,7 +257,7 @@
       </div>
     </div>
 
-    <el-dialog v-model="showCancelDialog" title="申请取消交换" width="500px">
+    <el-dialog v-model="showCancelModal" title="申请取消交换" width="500px">
       <div v-if="currentExchange" class="cancel-form">
         <el-form :model="cancelForm" label-position="top">
           <el-form-item label="取消原因">
@@ -270,12 +270,12 @@
         </div>
       </div>
       <template #footer>
-        <el-button @click="showCancelDialog = false">取消</el-button>
+        <el-button @click="showCancelModal = false">取消</el-button>
         <el-button type="danger" @click="submitCancel" :loading="submitting">提交取消申请</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showDisputeDialog" title="申诉取消申请" width="500px">
+    <el-dialog v-model="showDisputeModal" title="申诉取消申请" width="500px">
       <div v-if="currentExchange" class="dispute-form">
         <div class="dispute-info-preview">
           <div class="info-row">
@@ -294,7 +294,7 @@
         </div>
       </div>
       <template #footer>
-        <el-button @click="showDisputeDialog = false">取消</el-button>
+        <el-button @click="showDisputeModal = false">取消</el-button>
         <el-button type="danger" @click="submitDispute" :loading="submitting">提交申诉</el-button>
       </template>
     </el-dialog>
@@ -341,8 +341,8 @@ const activeTab = ref('pending')
 const confirmingId = ref(null)
 const processingId = ref(null)
 const showReview = ref(false)
-const showCancelDialog = ref(false)
-const showDisputeDialog = ref(false)
+const showCancelModal = ref(false)
+const showDisputeModal = ref(false)
 const currentExchange = ref(null)
 const submitting = ref(false)
 const reviewForm = ref({ rating: 5, comment: '' })
@@ -447,7 +447,7 @@ function hasReviewed(exchange) {
   return exchange.reviewedBy?.includes(myId)
 }
 
-function showReviewDialog(exchange) {
+function openReviewDialog(exchange) {
   currentExchange.value = exchange
   reviewForm.value = { rating: 5, comment: '' }
   showReview.value = true
@@ -483,10 +483,10 @@ async function submitReview() {
   }
 }
 
-function showCancelDialog(exchange) {
+function openCancelDialog(exchange) {
   currentExchange.value = exchange
   cancelForm.value = { reason: '' }
-  showCancelDialog.value = true
+  showCancelModal.value = true
 }
 
 async function submitCancel() {
@@ -500,7 +500,7 @@ async function submitCancel() {
     submitting.value = true
     await exchangeAPI.requestCancel(currentExchange.value.id, cancelForm.value.reason)
     ElMessage.success('取消申请已发送')
-    showCancelDialog.value = false
+    showCancelModal.value = false
     await loadExchanges()
   } catch (e) {
     ElMessage.error(e.message || '提交失败')
@@ -509,10 +509,10 @@ async function submitCancel() {
   }
 }
 
-function showDisputeDialog(exchange) {
+function openDisputeDialog(exchange) {
   currentExchange.value = exchange
   disputeForm.value = { reason: '' }
-  showDisputeDialog.value = true
+  showDisputeModal.value = true
 }
 
 async function submitDispute() {
@@ -526,7 +526,7 @@ async function submitDispute() {
     submitting.value = true
     await exchangeAPI.dispute(currentExchange.value.id, disputeForm.value.reason)
     ElMessage.success('申诉已提交，请等待管理员处理')
-    showDisputeDialog.value = false
+    showDisputeModal.value = false
     await loadExchanges()
   } catch (e) {
     ElMessage.error(e.message || '提交失败')
