@@ -73,6 +73,12 @@ const routes = [
     name: 'Exchanges',
     component: () => import('../views/Exchanges.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin',
+    name: 'Admin',
+    component: () => import('../views/Admin.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
   }
 ]
 
@@ -86,6 +92,8 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !userStore.token) {
     next('/login')
   } else if (to.meta.guest && userStore.token) {
+    next('/')
+  } else if (to.meta.requiresAdmin && userStore.user?.role !== 'admin') {
     next('/')
   } else {
     next()

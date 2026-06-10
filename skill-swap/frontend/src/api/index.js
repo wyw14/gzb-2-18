@@ -56,7 +56,15 @@ export const messageAPI = {
 export const exchangeAPI = {
   getExchanges: () => api.get('/exchanges'),
   createExchange: (data) => api.post('/exchanges', data),
-  confirmExchange: (id) => api.put(`/exchanges/${id}/confirm`)
+  confirmExchange: (id) => api.put(`/exchanges/${id}/confirm`),
+  requestCancel: (id, reason) => api.put(`/exchanges/${id}/cancel-request`, { reason }),
+  approveCancel: (id) => api.put(`/exchanges/${id}/cancel-approve`),
+  dispute: (id, reason) => api.put(`/exchanges/${id}/dispute`)
+}
+
+export const adminAPI = {
+  getAllExchanges: () => api.get('/admin/exchanges'),
+  handleDispute: (id, action, remark) => api.put(`/admin/exchanges/${id}/handle`, { action, remark })
 }
 
 export const reviewAPI = {

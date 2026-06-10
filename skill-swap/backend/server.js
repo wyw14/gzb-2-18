@@ -27,6 +27,15 @@ function authMiddleware(req, res, next) {
   }
 }
 
+function adminMiddleware(req, res, next) {
+  const users = readJson('users.json');
+  const user = users.find(u => u.id === req.user.id);
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ error: '需要管理员权限' });
+  }
+  next();
+}
+
 app.post('/api/auth/register', (req, res) => {
   const { username, email, password } = req.body;
 
@@ -64,6 +73,7 @@ app.post('/api/auth/register', (req, res) => {
     reviewCount: 0,
     exchangeCount: 0,
     skillPoints: 0,
+    role: 'user',
     preferences: {
       location: { city: '', province: '' },
       time: [],
@@ -300,7 +310,16 @@ app.post('/api/exchanges', authMiddleware, (req, res) => {
     skills: req.body.skills,
     status: 'pending',
     createdAt: new Date().toISOString(),
-    confirmedBy: []
+    confirmedBy: [],
+    cancelRequestedBy: null,
+    cancelReason: null,
+    cancelRequestedAt: null,
+    disputedBy: null,
+    disputeReason: null,
+    disputedAt: null,
+    handledBy: null,
+    handleResult: null,
+    handledAt: null
   };
   exchanges.push(newExchange);
   writeJson('exchanges.json', exchanges);
@@ -315,6 +334,13 @@ app.put('/api/exchanges/:id/confirm', authMiddleware, (req, res) => {
   }
 
   const exchange = exchanges[index];
+  if (exchange.status === 'disputed' || exchange.status === 'cancel_pending' || exchange.status === 'cancelled') {
+    return res.status(400).json({ error: '当前状态下无法确认完成' });
+  }
+  if (exchange.initiatorId !== req.user.id && exchange.partnerId !== req.user.id) {
+    return res.status(403).json({ error: '无权操作此交换' });
+  }
+
   if (!exchange.confirmedBy.includes(req.user.id)) {
     exchange.confirmedBy.push(req.user.id);
   }
@@ -345,6 +371,159 @@ app.get('/api/exchanges', authMiddleware, (req, res) => {
     e.initiatorId === req.user.id || e.partnerId === req.user.id
   );
   res.json(myExchanges);
+});
+
+app.put('/api/exchanges/:id/cancel-request', authMiddleware, (req, res) => {
+  const { reason } = req.body;
+  if (!reason || reason.trim().length < 5) {
+    return res.status(400).json({ error: '请填写取消原因（至少5个字符）' });
+  }
+
+  const exchanges = readJson('exchanges.json');
+  const index = exchanges.findIndex(e => e.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: '交换不存在' });
+  }
+
+  const exchange = exchanges[index];
+  if (exchange.status !== 'pending') {
+    return res.status(400).json({ error: '只能取消待确认状态的交换' });
+  }
+  if (exchange.initiatorId !== req.user.id && exchange.partnerId !== req.user.id) {
+    return res.status(403).json({ error: '无权操作此交换' });
+  }
+
+  exchange.status = 'cancel_pending';
+  exchange.cancelRequestedBy = req.user.id;
+  exchange.cancelReason = reason.trim();
+  exchange.cancelRequestedAt = new Date().toISOString();
+
+  exchanges[index] = exchange;
+  writeJson('exchanges.json', exchanges);
+  res.json(exchange);
+});
+
+app.put('/api/exchanges/:id/cancel-approve', authMiddleware, (req, res) => {
+  const exchanges = readJson('exchanges.json');
+  const index = exchanges.findIndex(e => e.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: '交换不存在' });
+  }
+
+  const exchange = exchanges[index];
+  if (exchange.status !== 'cancel_pending') {
+    return res.status(400).json({ error: '当前状态无法执行此操作' });
+  }
+  if (exchange.cancelRequestedBy === req.user.id) {
+    return res.status(400).json({ error: '不能同意自己发起的取消申请' });
+  }
+  if (exchange.initiatorId !== req.user.id && exchange.partnerId !== req.user.id) {
+    return res.status(403).json({ error: '无权操作此交换' });
+  }
+
+  exchange.status = 'cancelled';
+  exchange.cancelledAt = new Date().toISOString();
+
+  exchanges[index] = exchange;
+  writeJson('exchanges.json', exchanges);
+  res.json(exchange);
+});
+
+app.put('/api/exchanges/:id/dispute', authMiddleware, (req, res) => {
+  const { reason } = req.body;
+  if (!reason || reason.trim().length < 5) {
+    return res.status(400).json({ error: '请填写申诉原因（至少5个字符）' });
+  }
+
+  const exchanges = readJson('exchanges.json');
+  const index = exchanges.findIndex(e => e.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: '交换不存在' });
+  }
+
+  const exchange = exchanges[index];
+  if (exchange.status !== 'cancel_pending') {
+    return res.status(400).json({ error: '当前状态无法申诉' });
+  }
+  if (exchange.cancelRequestedBy === req.user.id) {
+    return res.status(400).json({ error: '不能申诉自己发起的取消申请' });
+  }
+  if (exchange.initiatorId !== req.user.id && exchange.partnerId !== req.user.id) {
+    return res.status(403).json({ error: '无权操作此交换' });
+  }
+
+  exchange.status = 'disputed';
+  exchange.disputedBy = req.user.id;
+  exchange.disputeReason = reason.trim();
+  exchange.disputedAt = new Date().toISOString();
+
+  exchanges[index] = exchange;
+  writeJson('exchanges.json', exchanges);
+  res.json(exchange);
+});
+
+app.get('/api/admin/exchanges', authMiddleware, adminMiddleware, (req, res) => {
+  const exchanges = readJson('exchanges.json');
+  const users = readJson('users.json');
+
+  const exchangesWithUsers = exchanges.map(exchange => {
+    const initiator = users.find(u => u.id === exchange.initiatorId);
+    const partner = users.find(u => u.id === exchange.partnerId);
+    const cancelRequester = users.find(u => u.id === exchange.cancelRequestedBy);
+    const disputer = users.find(u => u.id === exchange.disputedBy);
+    const handler = users.find(u => u.id === exchange.handledBy);
+
+    return {
+      ...exchange,
+      initiatorName: initiator?.username || '未知用户',
+      partnerName: partner?.username || '未知用户',
+      cancelRequesterName: cancelRequester?.username,
+      disputerName: disputer?.username,
+      handlerName: handler?.username
+    };
+  });
+
+  res.json(exchangesWithUsers);
+});
+
+app.put('/api/admin/exchanges/:id/handle', authMiddleware, adminMiddleware, (req, res) => {
+  const { action, remark } = req.body;
+  if (!['approve_cancel', 'reject_dispute'].includes(action)) {
+    return res.status(400).json({ error: '无效的操作类型' });
+  }
+
+  const exchanges = readJson('exchanges.json');
+  const index = exchanges.findIndex(e => e.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: '交换不存在' });
+  }
+
+  const exchange = exchanges[index];
+  if (exchange.status !== 'disputed') {
+    return res.status(400).json({ error: '只能处理申诉中的交换' });
+  }
+
+  exchange.handledBy = req.user.id;
+  exchange.handleResult = action;
+  exchange.handleRemark = remark || '';
+  exchange.handledAt = new Date().toISOString();
+
+  if (action === 'approve_cancel') {
+    exchange.status = 'cancelled';
+    exchange.cancelledAt = new Date().toISOString();
+  } else if (action === 'reject_dispute') {
+    exchange.status = 'pending';
+    exchange.cancelRequestedBy = null;
+    exchange.cancelReason = null;
+    exchange.cancelRequestedAt = null;
+    exchange.disputedBy = null;
+    exchange.disputeReason = null;
+    exchange.disputedAt = null;
+  }
+
+  exchanges[index] = exchange;
+  writeJson('exchanges.json', exchanges);
+  res.json(exchange);
 });
 
 app.post('/api/reviews', authMiddleware, (req, res) => {

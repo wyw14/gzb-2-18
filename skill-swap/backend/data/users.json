@@ -10,6 +10,7 @@
     "reviewCount": 0,
     "exchangeCount": 0,
     "skillPoints": 0,
+    "role": "admin",
     "preferences": {
       "location": {
         "city": "",
@@ -32,6 +33,7 @@
     "reviewCount": 0,
     "exchangeCount": 0,
     "skillPoints": 0,
+    "role": "user",
     "preferences": {
       "location": {
         "city": "",
